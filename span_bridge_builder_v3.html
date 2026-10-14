@@ -1,0 +1,1452 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SPAN Bridge Builder</title>
+<style>
+  :root { --sky: #8FB0E6; --dark: #1B3160; --hot: #FFB23F; --sun: #C9DAF5; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: var(--sky); font-family: Helvetica, Arial, sans-serif; color: var(--dark); user-select: none; }
+  canvas { display: block; width: 100vw; height: 100vh; cursor: crosshair; touch-action: none; }
+  #bar { position: fixed; top: 0; left: 0; right: 0; display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: center; padding: 12px 16px; pointer-events: none; }
+  .group { display: flex; gap: 4px; align-items: center; pointer-events: auto; }
+  .spacer { flex: 1; }
+  button { font: inherit; font-size: 14px; color: var(--dark); background: transparent; border: 1.5px solid var(--dark); padding: 5px 11px; cursor: pointer; }
+  button:hover { background: rgba(0, 0, 0, 0.06); }
+  button.active { background: var(--dark); color: var(--sky); }
+  button.primary { background: var(--dark); color: var(--sky); min-width: 72px; }
+  button:disabled { opacity: 0.35; cursor: default; }
+  .sw { display: inline-block; width: 16px; margin-right: 7px; vertical-align: middle; background: currentColor; }
+  .sw-road { height: 5px; }
+  .sw-wood { height: 2px; }
+  .sw-steel { height: 6px; background: transparent; border: 2px solid currentColor; }
+  #free { display: none; font-size: 14px; gap: 8px; }
+  #free.show { display: flex; }
+  #gap { width: 110px; accent-color: var(--dark); }
+  #gapOut { min-width: 76px; font-variant-numeric: tabular-nums; }
+  #lvl { font-size: 14px; min-width: 120px; text-align: center; }
+  #cost { font-size: 14px; font-variant-numeric: tabular-nums; margin-right: 8px; }
+  #cost.over { color: var(--hot); }
+  #msg { position: fixed; top: 22%; left: 0; right: 0; text-align: center; pointer-events: none; display: none; }
+  #msg h1 { margin: 0; font-size: 40px; font-weight: 700; letter-spacing: 1px; }
+  #msg p { margin: 6px auto 0; font-size: 15px; max-width: 460px; line-height: 1.5; }
+  #tut { position: fixed; inset: 0; z-index: 10; }
+  #tut[hidden] { display: none; }
+  #tutSpot { position: fixed; box-shadow: 0 0 0 200vmax rgba(0, 0, 0, 0.45); border: 2px solid var(--hot); pointer-events: none; transition: all 0.25s ease; }
+  #tutSpot.none { border-width: 0; }
+  #tutCard { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); width: min(460px, calc(100vw - 32px)); max-height: calc(100vh - 140px); overflow-y: auto; background: var(--sun); color: var(--dark); border: 2px solid var(--dark); padding: 16px 20px 18px; }
+  #tutStep { font-size: 12px; letter-spacing: 1px; opacity: 0.7; }
+  #tutTitle { margin: 2px 0 10px; font-size: 22px; }
+  #tutPic svg { display: block; width: 100%; height: auto; max-height: 120px; }
+  #tutPic:empty, .compact #tutPic { display: none; }
+  #tutText { margin: 10px 0 14px; font-size: 15px; line-height: 1.5; }
+  #tutNav { display: flex; gap: 6px; align-items: center; }
+  #tutNav .spacer { flex: 1; }
+  #tutSkip { border-color: transparent; padding-left: 0; text-decoration: underline; }
+  .keys { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; font-size: 14px; align-items: center; }
+  kbd { font: inherit; font-size: 13px; border: 1.5px solid var(--dark); padding: 1px 7px; justify-self: start; }
+  #hint { position: fixed; top: 64px; left: 0; right: 0; text-align: center; font-size: 14px; pointer-events: none; transition: opacity 0.3s; }
+
+  /* SPAN refresh: crisp workshop controls, clearer hierarchy, and small-screen support. */
+  html, body { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+  body { background: #dce8f8; }
+  #bar {
+    gap: 9px 14px; padding: 14px 18px; align-items: center;
+    background: linear-gradient(180deg, rgba(248,251,255,.94), rgba(248,251,255,.76));
+    border-bottom: 1px solid rgba(27,49,96,.13);
+    box-shadow: 0 8px 28px rgba(25,45,85,.09);
+    backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  }
+  .brand { display:flex; align-items:center; gap:8px; padding-right:8px; white-space:nowrap; }
+  .brand-mark { display:grid; place-items:center; width:31px; height:31px; border-radius:9px; color:#fff; background:var(--dark); font-weight:900; font-size:18px; box-shadow:0 3px 8px rgba(0,0,0,.12); }
+  .brand-name { font-size:15px; font-weight:900; letter-spacing:2px; color:var(--dark); }
+  .brand-sub { font-size:9px; font-weight:800; letter-spacing:1.1px; opacity:.56; padding-left:2px; }
+  .group { gap:5px; }
+  button {
+    border:1px solid color-mix(in srgb, var(--dark) 24%, transparent);
+    border-radius:9px; padding:8px 11px; font-size:12px; font-weight:700;
+    background:rgba(255,255,255,.5); transition:transform .15s ease, background .15s ease, box-shadow .15s ease;
+    white-space:nowrap;
+  }
+  button:hover:not(:disabled) { background:rgba(255,255,255,.92); transform:translateY(-1px); box-shadow:0 3px 10px rgba(27,49,96,.10); }
+  button:active:not(:disabled) { transform:translateY(0); }
+  button.active, button.primary { background:var(--dark); color:#fff; border-color:var(--dark); box-shadow:0 3px 9px rgba(27,49,96,.16); }
+  button.primary { padding:9px 15px; min-width:112px; }
+  button:focus-visible { outline:3px solid var(--hot); outline-offset:2px; }
+  #levels { background:rgba(27,49,96,.06); padding:3px; border-radius:11px; gap:3px; }
+  #levels button { border:0; background:transparent; padding:6px 10px; }
+  #levels button:hover:not(:disabled) { background:rgba(27,49,96,.09); box-shadow:none; }
+  #lvl { min-width:92px; font-size:12px; font-weight:800; letter-spacing:.1px; }
+  #tools { padding:3px; gap:3px; border-radius:11px; background:rgba(27,49,96,.055); }
+  #tools button { border-color:transparent; }
+  #tools button.active { background:var(--dark); color:#fff; }
+  #cost, .stat { font-size:11px; font-weight:800; font-variant-numeric:tabular-nums; padding:8px 10px; border-radius:9px; background:rgba(27,49,96,.07); white-space:nowrap; }
+  #cost.over { color:#a44c00; background:rgba(255,178,63,.24); }
+  .sw { margin-right:5px; }
+  #free { align-items:center; padding:5px 9px; border-radius:9px; background:rgba(27,49,96,.06); }
+  #gap { width:88px; }
+  #gapOut { min-width:58px; font-size:11px; font-weight:700; }
+  #msg { top:50%; left:50%; right:auto; transform:translate(-50%,-50%); width:min(430px, calc(100vw - 32px)); padding:25px 28px; border:1px solid rgba(255,255,255,.55); border-radius:20px; background:rgba(248,251,255,.94); box-shadow:0 22px 70px rgba(16,32,65,.25); backdrop-filter:blur(14px); }
+  #msg h1 { font-size:clamp(27px, 4vw, 38px); letter-spacing:-1px; }
+  #msg p { font-size:14px; }
+  #hint { top:auto; bottom:18px; left:50%; right:auto; transform:translateX(-50%); max-width:calc(100vw - 24px); padding:9px 14px; border-radius:999px; color:var(--dark); background:rgba(248,251,255,.9); box-shadow:0 4px 18px rgba(27,49,96,.12); font-size:12px; font-weight:700; white-space:nowrap; }
+  #tutCard { border-radius:18px; box-shadow:0 18px 55px rgba(0,0,0,.2); }
+  #tutSpot { border-radius:9px; }
+  @media (max-width: 900px) {
+    #bar { gap:7px; padding:9px 10px; }
+    .brand-sub { display:none; }
+    .brand { padding-right:2px; }
+    button { padding:7px 8px; }
+    #lvl { min-width:75px; }
+    #free { order:8; }
+    #bar > .spacer { display:none; }
+  }
+  @media (max-width: 620px) {
+    #bar { justify-content:center; gap:6px; }
+    .brand { margin-right:auto; }
+    #levels { order:2; }
+    #tools { order:3; }
+    #bar > .group:has(#undo) { order:4; }
+    #free { order:5; }
+    #bar > .group:has(#tutBtn) { order:6; }
+    #bar > .group:has(#test) { order:7; }
+    #cost, .stat { padding:6px 7px; font-size:10px; }
+    #test { min-width:88px; }
+    #hint { bottom:8px; font-size:11px; white-space:normal; text-align:center; border-radius:14px; width:max-content; }
+  }
+  /* v3 additions */
+  #msg button { pointer-events: auto; }
+  #msgStars { display: flex; justify-content: center; gap: 6px; margin: 12px 0 2px; }
+  #msgStars:empty { display: none; }
+  #msgStars svg { width: 30px; height: 30px; }
+  #msgStats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 14px 0 0; }
+  #msgStats:empty { display: none; }
+  #msgStats div { padding: 8px 4px; border-radius: 10px; background: rgba(27,49,96,.07); font-size: 11px; font-weight: 700; }
+  #msgStats b { display: block; font-size: 17px; font-variant-numeric: tabular-nums; }
+  #msgStats .rec b { color: #b25a00; }
+  #msgBtns { display: flex; justify-content: center; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
+  .stars { display: inline-flex; gap: 1px; vertical-align: -2px; margin-left: 6px; }
+  .stars svg { width: 11px; height: 11px; }
+  .star-on { fill: var(--hot); stroke: var(--dark); stroke-width: 1.2; }
+  .star-off { fill: none; stroke: currentColor; stroke-width: 1.2; opacity: .35; }
+  #simctl { display: none; padding: 3px; gap: 3px; border-radius: 11px; background: rgba(27,49,96,.055); }
+  #simctl.show { display: flex; }
+  #simctl button { border-color: transparent; padding: 6px 9px; min-width: 38px; }
+  #veh { min-width: 64px; }
+  #load.hot { color: #a44c00; background: rgba(255,178,63,.24); }
+  .tag { font-size: 10px; font-weight: 800; letter-spacing: .6px; padding: 2px 6px; border-radius: 6px; background: var(--dark); color: #fff; margin-left: 6px; vertical-align: 1px; }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { transition:none !important; }
+  }
+
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="bar">
+  <div class="brand"><span class="brand-mark">S</span><span class="brand-name">SPAN</span><span class="brand-sub">BRIDGE BUILDER</span></div>
+  <div class="group" id="levels">
+    <button id="prev" aria-label="Previous level">&lt;</button>
+    <span id="lvl"></span>
+    <button id="next" aria-label="Next level">&gt;</button>
+  </div>
+  <div class="group" id="tools">
+    <button data-tool="road"><i class="sw sw-road"></i>Road</button>
+    <button data-tool="wood"><i class="sw sw-wood"></i>Wood</button>
+    <button data-tool="steel"><i class="sw sw-steel"></i>Steel</button>
+    <button data-tool="erase">Erase</button>
+  </div>
+  <div class="group">
+    <button id="undo">Undo</button>
+    <button id="clear">Clear</button>
+  </div>
+  <div class="group" id="free">
+    <label for="gap">Gap</label>
+    <input id="gap" type="range">
+    <span id="gapOut"></span>
+    <button id="pillar">Pillar</button>
+    <button id="veh">Vehicle: Car</button>
+  </div>
+  <div class="group" id="simctl">
+    <button id="pause" aria-label="Pause">Pause</button>
+    <button data-speed="0.25">0.25x</button>
+    <button data-speed="1">1x</button>
+    <button data-speed="2">2x</button>
+  </div>
+  <div class="spacer"></div>
+  <div class="group">
+    <button id="tutBtn">Tutorial</button>
+  </div>
+  <div class="group">
+    <span id="beamCount" class="stat">0 beams</span>
+    <span id="load" class="stat" hidden>Load 0%</span>
+    <span id="cost"></span>
+    <button id="test" class="primary">Test bridge</button>
+  </div>
+</div>
+<div id="msg"><h1 id="msgTitle"></h1><div id="msgStars"></div><p id="msgText"></p><div id="msgStats"></div>
+  <div id="msgBtns"><button id="mEdit">Edit bridge</button><button id="mRetry">Retry</button><button id="mNext" class="primary">Next level</button></div></div>
+<div id="hint"></div>
+<div id="tut" hidden>
+  <div id="tutSpot"></div>
+  <div id="tutCard" role="dialog" aria-modal="true" aria-labelledby="tutTitle">
+    <div id="tutStep"></div>
+    <h2 id="tutTitle"></h2>
+    <div id="tutPic" aria-hidden="true"></div>
+    <p id="tutText"></p>
+    <div id="tutNav">
+      <button id="tutSkip">Skip tutorial</button>
+      <span class="spacer"></span>
+      <button id="tutBack">Back</button>
+      <button id="tutNext" class="primary">Next</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ---- simulation core (no DOM, testable on its own) ----
+const WORLD_W = 800, WORLD_H = 450, GRID = 20, MAX_LEN = 100;
+const GRAVITY = 900, GRAVITY_RAMP = 0.4, SUBSTEPS = 16, ITERATIONS = 3, DAMPING = 0.9995, STRESS_SMOOTHING = 0.15;
+const MAX_TIME = 30;
+// Each vehicle is two wheels joined by a rigid axle. Mass sits in the wheels, so wheelMass is the load on the bridge.
+const VEHICLES = {
+  car:   { label: 'Car',   wheelMass: 2.5, radius: 9,  base: 40, speed: 110, traction: 0.2 },
+  truck: { label: 'Truck', wheelMass: 12,   radius: 10, base: 54, speed: 80,  traction: 0.25 },
+};
+const CAR = VEHICLES.car; // drawing fallback for build-mode previews
+
+// compliance = 1 / stiffness (XPBD). strength = max force before the beam snaps.
+const MATERIALS = {
+  road:  { label: 'Road',  cost: 1.5, mass: 0.05, compliance: 1e-7,   strength: 60000, width: 6, drivable: true },
+  wood:  { label: 'Wood',  cost: 1.0, mass: 0.03, compliance: 1.5e-7, strength: 70000, width: 3, drivable: false },
+  steel: { label: 'Steel', cost: 2.5, mass: 0.06, compliance: 3e-8,   strength: 180000, width: 5, drivable: false },
+};
+
+const BIG = 3000;
+const LEVELS = [
+  {
+    name: 'Canyon', hills: 'mesa', vehicle: 'car', par: 1150, budget: 1700, groundY: 300, carStartX: 60, goalX: 640,
+    palette: { sky: '#8FB0E6', sun: '#C9DAF5', layers: ['#7597D2', '#5C7EBC', '#4666A0'], dark: '#1B3160', hot: '#FFB23F' },
+    sunPos: [620, 90],
+    terrain: [
+      [[-BIG, 300], [240, 300], [240, BIG], [-BIG, BIG]],
+      [[560, 300], [BIG, 300], [BIG, BIG], [560, BIG]],
+    ],
+    anchors: [[240, 300], [560, 300], [240, 360], [560, 360]],
+  },
+  {
+    name: 'Peaks', hills: 'peak', vehicle: 'car', par: 1500, budget: 2700, groundY: 300, carStartX: 40, goalX: 680,
+    palette: { sky: '#9C9C9C', sun: '#D4D4D4', layers: ['#878787', '#6E6E6E', '#575757'], dark: '#2E2E2E', hot: '#FF7A3A' },
+    sunPos: [200, 80],
+    terrain: [
+      [[-BIG, 300], [200, 300], [200, BIG], [-BIG, BIG]],
+      [[600, 300], [BIG, 300], [BIG, BIG], [600, BIG]],
+    ],
+    anchors: [[200, 300], [600, 300], [200, 380], [600, 380]],
+  },
+  {
+    name: 'Dunes', hills: 'dune', vehicle: 'car', par: 1900, budget: 2800, groundY: 300, carStartX: 20, goalX: 700,
+    palette: { sky: '#D8A3AD', sun: '#EDC9CF', layers: ['#C98E9A', '#B07482', '#935A69'], dark: '#4A2433', hot: '#FFD86B' },
+    sunPos: [140, 85],
+    terrain: [
+      [[-BIG, 300], [160, 300], [160, BIG], [-BIG, BIG]],
+      [[640, 300], [BIG, 300], [BIG, BIG], [640, BIG]],
+      [[380, 400], [420, 400], [440, BIG], [360, BIG]],
+    ],
+    anchors: [[160, 300], [640, 300], [400, 400]],
+  },
+  {
+    name: 'Harbor', hills: 'dune', vehicle: 'truck', par: 1500, budget: 2000, groundY: 280, carStartX: 30, goalX: 690,
+    palette: { sky: '#7FB7C9', sun: '#CFE7EE', layers: ['#6AA3B6', '#55899D', '#416F82'], dark: '#163A48', hot: '#FF9F43' },
+    sunPos: [660, 75],
+    terrain: [
+      [[-BIG, 280], [220, 280], [220, BIG], [-BIG, BIG]],
+      [[580, 280], [BIG, 280], [BIG, BIG], [580, BIG]],
+    ],
+    anchors: [[220, 280], [580, 280], [220, 360], [580, 360]],
+  },
+  {
+    name: 'Gorge', hills: 'peak', vehicle: 'truck', par: 1850, budget: 2400, groundY: 260, carStartX: 50, goalX: 710,
+    palette: { sky: '#C7A27C', sun: '#EBD5BC', layers: ['#B48C66', '#9A7352', '#7D5B40'], dark: '#3A2618', hot: '#FFE066' },
+    sunPos: [180, 70],
+    terrain: [
+      [[-BIG, 260], [180, 260], [180, BIG], [-BIG, BIG]],
+      [[620, 260], [BIG, 260], [BIG, BIG], [620, BIG]],
+      [[380, 380], [420, 380], [440, BIG], [360, BIG]],
+    ],
+    anchors: [[180, 260], [620, 260], [180, 340], [620, 340], [400, 380]],
+  },
+];
+
+const FREE_GAP = { min: 120, max: 560, step: 40, start: 320 };
+
+function makeFreeLevel(gap, pillar, vehicle = 'car') {
+  const left = 400 - gap / 2, right = 400 + gap / 2;
+  const terrain = [
+    [[-BIG, 300], [left, 300], [left, BIG], [-BIG, BIG]],
+    [[right, 300], [BIG, 300], [BIG, BIG], [right, BIG]],
+  ];
+  const anchors = [[left, 300], [right, 300], [left, 380], [right, 380]];
+  if (pillar) {
+    terrain.push([[380, 400], [420, 400], [440, BIG], [360, BIG]]);
+    anchors.push([400, 400]);
+  }
+  return {
+    name: 'Free build', free: true, gap, pillar, hills: 'pine', vehicle, par: 0, budget: Infinity, groundY: 300,
+    carStartX: Math.max(vehicle === 'truck' ? 45 : 30, left - 180), goalX: Math.min(right + 80, 740),
+    palette: { sky: '#9FCFC4', sun: '#D8EFE9', layers: ['#86BCB0', '#6BA597', '#528A7D'], dark: '#1F4A40', hot: '#FFB84A' },
+    sunPos: [660, 80], terrain, anchors,
+  };
+}
+LEVELS.push(makeFreeLevel(FREE_GAP.start, false));
+
+function emptyDesign(level) {
+  return { joints: level.anchors.map(([x, y]) => ({ x, y, anchor: true })), beams: [] };
+}
+
+function beamCost(design, b) {
+  const A = design.joints[b.a], B = design.joints[b.b];
+  return Math.hypot(B.x - A.x, B.y - A.y) * MATERIALS[b.mat].cost;
+}
+
+function designCost(design) {
+  return design.beams.reduce((sum, b) => sum + beamCost(design, b), 0);
+}
+
+function createSim(level, design, vehicleKey) {
+  const veh = VEHICLES[vehicleKey || level.vehicle || 'car'];
+  const nodes = design.joints.map(j => ({ x: j.x, y: j.y, px: j.x, py: j.y, vx: 0, vy: 0, mass: 0, w: 0, anchor: j.anchor }));
+  const beams = design.beams.map((b, index) => {
+    const A = nodes[b.a], B = nodes[b.b], m = MATERIALS[b.mat];
+    const rest = Math.hypot(B.x - A.x, B.y - A.y);
+    A.mass += m.mass * rest / 2;
+    B.mass += m.mass * rest / 2;
+    return { index, a: A, b: B, mat: b.mat, rest, lambda: 0, force: 0, stress: 0, broken: false };
+  });
+  for (const n of nodes) n.w = (n.anchor || n.mass === 0) ? 0 : 1 / n.mass;
+
+  const wy = level.groundY - veh.radius;
+  const wheels = [0, 1].map(i => {
+    const x = level.carStartX + i * veh.base;
+    return { x, y: wy, px: x, py: wy, vx: 0, vy: 0, w: 1 / veh.wheelMass, r: veh.radius, contact: null, angle: 0 };
+  });
+
+  const edges = [];
+  for (const poly of level.terrain) {
+    for (let i = 0; i < poly.length; i++) {
+      const p = poly[i], q = poly[(i + 1) % poly.length];
+      edges.push([p[0], p[1], q[0], q[1]]);
+    }
+  }
+  return { level, veh, nodes, beams, wheels, edges, time: 0, state: 'running', reason: null, breaks: [], maxStress: 0 };
+}
+
+function integrate(p, h, g) {
+  if (!p.w) return;
+  p.vy += g * h;
+  p.px = p.x; p.py = p.y;
+  p.x += p.vx * h; p.y += p.vy * h;
+}
+
+function updateVelocity(p, h) {
+  if (!p.w) return;
+  p.vx = (p.x - p.px) / h * DAMPING;
+  p.vy = (p.y - p.py) / h * DAMPING;
+}
+
+// XPBD distance constraint. lambda accumulates the impulse, so lambda / h^2 is the beam force.
+function solveBeam(bm, h) {
+  const A = bm.a, B = bm.b, wsum = A.w + B.w;
+  if (!wsum) return;
+  const dx = A.x - B.x, dy = A.y - B.y;
+  const len = Math.hypot(dx, dy) || 1e-9;
+  const C = len - bm.rest;
+  const alpha = MATERIALS[bm.mat].compliance / (h * h);
+  const dl = (-C - alpha * bm.lambda) / (wsum + alpha);
+  bm.lambda += dl;
+  const nx = dx / len, ny = dy / len;
+  A.x += A.w * dl * nx; A.y += A.w * dl * ny;
+  B.x -= B.w * dl * nx; B.y -= B.w * dl * ny;
+}
+
+function solveRigid(A, B, rest) {
+  const wsum = A.w + B.w;
+  const dx = A.x - B.x, dy = A.y - B.y;
+  const len = Math.hypot(dx, dy) || 1e-9;
+  const k = (len - rest) / len / wsum;
+  A.x -= dx * k * A.w; A.y -= dy * k * A.w;
+  B.x += dx * k * B.w; B.y += dy * k * B.w;
+}
+
+// Push a wheel out of a segment. A and B are the segment's joints (null for terrain),
+// and they get pushed back by the same impulse, split by where the wheel touches.
+function solveContact(wh, ax, ay, bx, by, A, B, thick) {
+  const ex = bx - ax, ey = by - ay, len2 = ex * ex + ey * ey;
+  let t = len2 > 0 ? ((wh.x - ax) * ex + (wh.y - ay) * ey) / len2 : 0;
+  t = Math.max(0, Math.min(1, t));
+  const dx = wh.x - (ax + ex * t), dy = wh.y - (ay + ey * t);
+  const dist = Math.hypot(dx, dy);
+  const pen = wh.r + thick - dist;
+  if (pen <= 0 || dist < 1e-9) return;
+  const nx = dx / dist, ny = dy / dist;
+  const ca = A ? (1 - t) * A.w : 0, cb = B ? t * B.w : 0;
+  const k = pen / (wh.w + (1 - t) * ca + t * cb);
+  wh.x += nx * k * wh.w; wh.y += ny * k * wh.w;
+  if (A) { A.x -= nx * k * ca; A.y -= ny * k * ca; }
+  if (B) { B.x -= nx * k * cb; B.y -= ny * k * cb; }
+  if (!wh.contact || ny < wh.contact[1]) wh.contact = [nx, ny];
+}
+
+function substep(sim, h) {
+  const { nodes, beams, wheels, edges } = sim;
+  // Ease gravity in so a stiff bridge is not shocked by a sudden full load on frame 1.
+  const g = GRAVITY * Math.min(1, sim.time / GRAVITY_RAMP);
+  for (const n of nodes) integrate(n, h, g);
+  for (const w of wheels) { integrate(w, h, g); w.contact = null; }
+  for (const b of beams) b.lambda = 0;
+
+  const roadThick = MATERIALS.road.width / 2;
+  for (let it = 0; it < ITERATIONS; it++) {
+    for (const b of beams) if (!b.broken) solveBeam(b, h);
+    solveRigid(wheels[0], wheels[1], sim.veh.base);
+    for (const w of wheels) {
+      for (const b of beams) {
+        if (!b.broken && MATERIALS[b.mat].drivable) solveContact(w, b.a.x, b.a.y, b.b.x, b.b.y, b.a, b.b, roadThick);
+      }
+      for (const e of edges) solveContact(w, e[0], e[1], e[2], e[3], null, null, 0);
+    }
+  }
+
+  for (const n of nodes) updateVelocity(n, h);
+  for (const w of wheels) { w.angle += (w.x - w.px) / w.r; updateVelocity(w, h); }
+
+  if (sim.state !== 'lost') {
+    for (const w of wheels) {
+      if (!w.contact) continue;
+      let tx = -w.contact[1], ty = w.contact[0];
+      if (tx < 0) { tx = -tx; ty = -ty; }
+      const dv = (sim.veh.speed - (w.vx * tx + w.vy * ty)) * sim.veh.traction;
+      w.vx += tx * dv; w.vy += ty * dv;
+    }
+  }
+
+  for (const b of beams) {
+    if (b.broken) continue;
+    b.force = b.lambda / (h * h);
+    // Smoothed so one noisy substep cannot snap a beam; a real overload still breaks it within a few frames.
+    b.stress += (Math.abs(b.force) / MATERIALS[b.mat].strength - b.stress) * STRESS_SMOOTHING;
+    if (b.stress > sim.maxStress) sim.maxStress = b.stress;
+    if (b.stress > 1) {
+      b.broken = true;
+      // lambda < 0 means the constraint was pulling the joints together: the beam was stretched.
+      sim.breaks.push({ index: b.index, mat: b.mat, tension: b.force < 0, time: sim.time });
+    }
+  }
+}
+
+function stepSim(sim, dt) {
+  const h = dt / SUBSTEPS;
+  for (let i = 0; i < SUBSTEPS; i++) { substep(sim, h); sim.time += h; }
+  if (sim.state !== 'running') return;
+  if (sim.wheels.every(w => w.x > sim.level.goalX)) sim.state = 'won';
+  else if (sim.wheels.some(w => w.y > WORLD_H + 60)) { sim.state = 'lost'; sim.reason = 'fell'; }
+  else if (sim.time > MAX_TIME) { sim.state = 'lost'; sim.reason = 'stuck'; }
+}
+// ---- end simulation core ----
+
+// ---- game ----
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const $ = id => document.getElementById(id);
+const FIXED_DT = 1 / 60;
+
+// ---- save data: designs and best costs survive a reload ----
+const SAVE_KEY = 'span-save-v3';
+let save = { designs: {}, best: {}, free: null, level: 0 };
+try { const raw = localStorage.getItem(SAVE_KEY); if (raw) save = Object.assign(save, JSON.parse(raw)); } catch (err) { /* storage blocked: start fresh */ }
+
+const FREE_INDEX = LEVELS.findIndex(L => L.free);
+if (save.free) LEVELS[FREE_INDEX] = makeFreeLevel(save.free.gap, save.free.pillar, save.free.vehicle);
+
+// A saved design is only reused if its anchors still match the level (levels may change between versions).
+function loadDesign(L) {
+  const d = L.free ? save.free && save.free.design : save.designs[L.name];
+  const ok = d && Array.isArray(d.joints) && Array.isArray(d.beams) &&
+    L.anchors.every(([x, y], i) => d.joints[i] && d.joints[i].anchor && d.joints[i].x === x && d.joints[i].y === y) &&
+    d.beams.every(b => d.joints[b.a] && d.joints[b.b] && MATERIALS[b.mat]);
+  return ok ? d : emptyDesign(L);
+}
+
+let levelIndex = Math.min(Math.max(0, save.level | 0), LEVELS.length - 1);
+let designs = LEVELS.map(loadDesign);
+let undoStack = [], redoStack = [];
+let tool = 'road';
+let mode = 'build';
+let sim = null, lastState = null;
+let pending = null;          // index of the joint a new beam starts from
+let hover = null;            // snapped world point under the mouse
+let lastBreaks = null;       // beams that broke in the last test, shown in build mode until the design changes
+let view = { scale: 1, ox: 0, oy: 0, dpr: 1, w: 0, h: 0 };
+let hintTimer = 0;
+let hoverRaw = null;         // unsnapped mouse position, used by the erase highlight
+let simSpeed = 1, paused = false;
+let fx = [], shake = 0, seenBreaks = 0;  // visual effects only, never touch the physics
+
+function persist() {
+  try {
+    save.designs = {};
+    LEVELS.forEach((L, i) => { if (!L.free) save.designs[L.name] = designs[i]; });
+    const F = LEVELS[FREE_INDEX];
+    save.free = { gap: F.gap, pillar: F.pillar, vehicle: F.vehicle, design: designs[FREE_INDEX] };
+    save.level = levelIndex;
+    localStorage.setItem(SAVE_KEY, JSON.stringify(save));
+  } catch (err) { /* storage blocked or full: game still works, it just forgets on reload */ }
+}
+
+// 3 stars at or under par, 2 stars within 30% of par, 1 star for any clean crossing.
+function starsFor(L, cost) {
+  if (L.free || cost == null) return 0;
+  return cost <= L.par ? 3 : cost <= L.par * 1.3 ? 2 : 1;
+}
+const STAR_PATH = 'M12 2l2.9 6.6 7.1.6-5.4 4.7 1.6 7-6.2-3.8-6.2 3.8 1.6-7L2 9.2l7.1-.6z';
+function starsHTML(n) {
+  return [0, 1, 2].map(i => `<svg viewBox="0 0 24 24"><path class="${i < n ? 'star-on' : 'star-off'}" d="${STAR_PATH}"/></svg>`).join('');
+}
+
+const level = () => LEVELS[levelIndex];
+const design = () => designs[levelIndex];
+
+function resize() {
+  view.dpr = window.devicePixelRatio || 1;
+  view.w = window.innerWidth; view.h = window.innerHeight;
+  canvas.width = view.w * view.dpr; canvas.height = view.h * view.dpr;
+  view.scale = Math.min(view.w / WORLD_W, view.h / WORLD_H);
+  view.ox = (view.w - WORLD_W * view.scale) / 2;
+  view.oy = (view.h - WORLD_H * view.scale) / 2;
+}
+
+function toWorld(e) {
+  const r = canvas.getBoundingClientRect();
+  return { x: (e.clientX - r.left - view.ox) / view.scale, y: (e.clientY - r.top - view.oy) / view.scale };
+}
+
+function snap(p) { return { x: Math.round(p.x / GRID) * GRID, y: Math.round(p.y / GRID) * GRID }; }
+
+function pointInPoly(x, y, poly) {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [xi, yi] = poly[i], [xj, yj] = poly[j];
+    if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+
+// A point on a terrain edge is allowed; only points fully inside rock are not.
+function insideTerrain(x, y) {
+  const offsets = [[-0.5, -0.5], [0.5, -0.5], [-0.5, 0.5], [0.5, 0.5]];
+  return level().terrain.some(poly => offsets.every(([dx, dy]) => pointInPoly(x + dx, y + dy, poly)));
+}
+
+function validPoint(p) {
+  return p.x >= 0 && p.x <= WORLD_W && p.y >= 0 && p.y <= WORLD_H && !insideTerrain(p.x, p.y);
+}
+
+function findJoint(p, radius = 10) {
+  let best = -1, bestD = radius;
+  design().joints.forEach((j, i) => {
+    const d = Math.hypot(j.x - p.x, j.y - p.y);
+    if (d <= bestD) { best = i; bestD = d; }
+  });
+  return best;
+}
+
+function distToSegment(p, a, b) {
+  const ex = b.x - a.x, ey = b.y - a.y, len2 = ex * ex + ey * ey;
+  const t = len2 ? Math.max(0, Math.min(1, ((p.x - a.x) * ex + (p.y - a.y) * ey) / len2)) : 0;
+  return Math.hypot(p.x - (a.x + ex * t), p.y - (a.y + ey * t));
+}
+
+function hint(text) {
+  $('hint').textContent = text;
+  $('hint').style.opacity = 1;
+  clearTimeout(hintTimer);
+  hintTimer = setTimeout(() => { $('hint').style.opacity = 0; }, 1800);
+}
+
+function saveUndo() {
+  lastBreaks = null;
+  undoStack.push(JSON.stringify(design()));
+  redoStack = [];
+  if (undoStack.length > 100) undoStack.shift();
+}
+
+function removeOrphans(d) {
+  const used = new Set();
+  d.beams.forEach(b => { used.add(b.a); used.add(b.b); });
+  const remap = [];
+  const joints = [];
+  d.joints.forEach((j, i) => {
+    if (j.anchor || used.has(i)) { remap[i] = joints.length; joints.push(j); }
+  });
+  d.joints = joints;
+  d.beams.forEach(b => { b.a = remap[b.a]; b.b = remap[b.b]; });
+}
+
+function placeBeam(world) {
+  const d = design();
+  let target = findJoint(world);
+
+  if (pending === null) {
+    if (target === -1) { hint('Start a beam from a joint or an anchor'); return; }
+    pending = target;
+    return;
+  }
+
+  const start = d.joints[pending];
+  const end = target !== -1 ? d.joints[target] : snap(world);
+  if (target === pending) { pending = null; return; }
+  if (target === -1 && !validPoint(end)) { hint('Cannot build inside rock'); return; }
+
+  const len = Math.hypot(end.x - start.x, end.y - start.y);
+  if (len > MAX_LEN + 0.01) { hint('Too long. Max length is ' + MAX_LEN / GRID + ' grid squares'); return; }
+  if (target !== -1 && d.beams.some(b => (b.a === pending && b.b === target) || (b.b === pending && b.a === target))) {
+    hint('Beam already there'); return;
+  }
+  const extra = len * MATERIALS[tool].cost;
+  if (designCost(d) + extra > level().budget) { hint('Over budget'); return; }
+
+  saveUndo();
+  if (target === -1) { d.joints.push({ x: end.x, y: end.y, anchor: false }); target = d.joints.length - 1; }
+  d.beams.push({ a: pending, b: target, mat: tool });
+  pending = target;
+  updateUI();
+}
+
+// What the eraser would remove at this point: a free joint (with its beams) first, else the nearest beam.
+function eraseTarget(world) {
+  const d = design();
+  const j = findJoint(world, 8);
+  if (j !== -1 && !d.joints[j].anchor) return { joint: j };
+  let best = -1, bestD = 8;
+  d.beams.forEach((b, i) => {
+    const dist = distToSegment(world, d.joints[b.a], d.joints[b.b]);
+    if (dist < bestD) { best = i; bestD = dist; }
+  });
+  return best === -1 ? null : { beam: best };
+}
+
+function erase(world) {
+  const d = design(), target = eraseTarget(world);
+  if (!target) return;
+  saveUndo();
+  if (target.joint != null) d.beams = d.beams.filter(b => b.a !== target.joint && b.b !== target.joint);
+  else d.beams.splice(target.beam, 1);
+  removeOrphans(d);
+  updateUI();
+}
+
+function undo() {
+  if (mode !== 'build' || !undoStack.length) return;
+  redoStack.push(JSON.stringify(design()));
+  designs[levelIndex] = JSON.parse(undoStack.pop());
+  pending = null;
+  lastBreaks = null;
+  updateUI();
+}
+
+function redo() {
+  if (mode !== 'build' || !redoStack.length) return;
+  undoStack.push(JSON.stringify(design()));
+  designs[levelIndex] = JSON.parse(redoStack.pop());
+  pending = null;
+  lastBreaks = null;
+  updateUI();
+}
+
+function clearDesign() {
+  if (mode !== 'build' || !design().beams.length) return;
+  saveUndo();
+  designs[levelIndex] = emptyDesign(level());
+  pending = null;
+  updateUI();
+}
+
+function setTool(t) {
+  tool = t;
+  pending = null;
+  updateUI();
+}
+
+function startTest() {
+  if (!design().beams.length) { hint('Build something first'); return; }
+  mode = 'test';
+  pending = null;
+  sim = createSim(level(), design());
+  lastState = 'running';
+  accumulator = 0;
+  paused = false;
+  seenBreaks = 0;
+  fx = [];
+  updateUI();
+}
+
+function stopTest() {
+  mode = 'build';
+  if (sim.breaks.length) {
+    const seen = new Set();
+    lastBreaks = sim.breaks.filter(b => !seen.has(b.index) && seen.add(b.index));
+  }
+  sim = null;
+  paused = false;
+  fx = []; shake = 0;
+  $('msg').style.display = 'none';
+  updateUI();
+}
+
+function retry() {
+  if (mode === 'test') stopTest();
+  startTest();
+}
+
+function nextLevel() {
+  if (mode === 'test') stopTest();
+  changeLevel(1);
+}
+
+function changeLevel(delta) {
+  if (mode !== 'build') return;
+  levelIndex = (levelIndex + delta + LEVELS.length) % LEVELS.length;
+  undoStack = []; redoStack = [];
+  pending = null;
+  lastBreaks = null;
+  applyPalette();
+  updateUI();
+  if (level().vehicle === 'truck' && !level().free) hint('Truck level: about 5x heavier than the car');
+}
+
+function rebuildFreeLevel(gap, pillar) {
+  if (mode !== 'build') return;
+  const i = FREE_INDEX;
+  LEVELS[i] = makeFreeLevel(gap, pillar, LEVELS[i].vehicle);
+  designs[i] = emptyDesign(LEVELS[i]);
+  undoStack = []; redoStack = [];
+  pending = null;
+  lastBreaks = null;
+  updateUI();
+}
+
+function applyPalette() {
+  const p = level().palette, s = document.documentElement.style;
+  s.setProperty('--sky', p.sky);
+  s.setProperty('--dark', p.dark);
+  s.setProperty('--hot', p.hot);
+  s.setProperty('--sun', p.sun);
+}
+
+function updateUI() {
+  const L = level(), cost = Math.round(designCost(design()));
+  const best = save.best[L.name];
+  $('lvl').innerHTML = '';
+  $('lvl').append(L.free ? L.name : (levelIndex + 1) + '  ' + L.name);
+  if (!L.free) {
+    const st = document.createElement('span');
+    st.className = 'stars';
+    st.title = best != null ? 'Best cost ' + best + ', par ' + L.par : 'Not beaten yet. Par ' + L.par;
+    st.innerHTML = starsHTML(starsFor(L, best));
+    $('lvl').append(st);
+    if (L.vehicle === 'truck') { const t = document.createElement('span'); t.className = 'tag'; t.textContent = 'TRUCK'; $('lvl').append(t); }
+  }
+  $('cost').textContent = L.free ? 'COST ' + cost : cost + ' / ' + L.budget + '  (par ' + L.par + ')';
+  $('beamCount').textContent = design().beams.length + (design().beams.length === 1 ? ' beam' : ' beams');
+  $('cost').classList.toggle('over', cost > L.budget);
+  $('free').classList.toggle('show', !!L.free);
+  if (L.free) {
+    $('gap').value = L.gap;
+    $('gapOut').textContent = L.gap / GRID + ' squares';
+    $('pillar').classList.toggle('active', L.pillar);
+    $('gap').disabled = $('pillar').disabled = $('veh').disabled = mode !== 'build';
+    $('veh').textContent = 'Vehicle: ' + VEHICLES[L.vehicle].label;
+  }
+  document.querySelectorAll('#tools button').forEach(b => b.classList.toggle('active', b.dataset.tool === tool));
+  const building = mode === 'build';
+  ['prev', 'next', 'clear'].forEach(id => { $(id).disabled = !building; });
+  $('undo').disabled = !building || !undoStack.length;
+  document.querySelectorAll('#tools button').forEach(b => { b.disabled = !building; });
+  $('test').textContent = building ? 'Test bridge' : 'Edit bridge';
+  $('simctl').classList.toggle('show', !building);
+  $('beamCount').hidden = !building;
+  $('load').hidden = building;
+  updateSimButtons();
+  persist();
+}
+
+function updateSimButtons() {
+  $('pause').textContent = paused ? 'Play' : 'Pause';
+  $('pause').classList.toggle('active', paused);
+  document.querySelectorAll('#simctl [data-speed]').forEach(b => b.classList.toggle('active', Number(b.dataset.speed) === simSpeed));
+}
+
+function setSpeed(v) { simSpeed = v; paused = false; updateSimButtons(); }
+function togglePause() { if (mode !== 'test') return; paused = !paused; updateSimButtons(); }
+
+// Explains the first break, because later breaks are usually a chain reaction caused by it.
+function failureText() {
+  if (sim.breaks.length) {
+    const first = sim.breaks[0], name = MATERIALS[first.mat].label.toLowerCase();
+    const count = new Set(sim.breaks.map(b => b.index)).size;
+    const what = first.tension
+      ? 'A ' + name + ' beam was pulled apart (tension). Too much stretch on one beam: add a triangle to share the load, or use steel there.'
+      : 'A ' + name + ' beam was crushed (compression). It was squeezed too hard: shorten it, brace it with a triangle, or use steel.';
+    return what + ' ' + count + (count === 1 ? ' beam' : ' beams') + ' broke in total.';
+  }
+  if (sim.reason === 'fell') return 'The car fell. Check that the road reaches all the way across.';
+  return 'The car got stuck. The road may be too steep or bent.';
+}
+
+function showResult(state) {
+  const L = level(), cost = Math.round(designCost(design()));
+  const broke = new Set(sim.breaks.map(b => b.index)).size;
+  const won = state === 'won';
+  let stars = 0, record = false;
+  if (won && !L.free) {
+    stars = starsFor(L, cost);
+    const prev = save.best[L.name];
+    if (prev == null || cost < prev) { save.best[L.name] = cost; record = true; }
+  }
+  $('msgTitle').textContent = won ? (broke ? 'Barely made it' : 'Bridge held') : 'Bridge failed';
+  $('msgStars').innerHTML = won && !L.free ? starsHTML(stars) : '';
+  if (won) {
+    const warn = broke ? broke + (broke === 1 ? ' beam' : ' beams') + ' broke on the way. ' : '';
+    const tip = L.free ? '' : stars === 3 ? 'Under par. Can you go even cheaper?' : 'Par is ' + L.par + '. Fewer or cheaper beams get more stars.';
+    $('msgText').textContent = warn + tip;
+  } else {
+    $('msgText').textContent = failureText() + ' Broken beams stay marked in edit mode.';
+  }
+  const best = save.best[L.name];
+  $('msgStats').innerHTML = [
+    ['Cost', cost],
+    ['Peak load', broke ? 'Over 100%' : Math.round(sim.maxStress * 100) + '%'],
+    [L.free ? 'Time' : record ? 'New best' : 'Best', L.free ? sim.time.toFixed(1) + 's' : best != null ? best : '-'],
+  ].map(([k, v], i) => `<div class="${i === 2 && record ? 'rec' : ''}"><b>${v}</b>${k}</div>`).join('');
+  $('mNext').hidden = !won;
+  $('mRetry').hidden = won;
+  $('mEdit').classList.toggle('primary', !won);
+  $('msg').style.display = 'block';
+  if (won) burst(L.goalX + 40, L.groundY - 40, 40, ['hot', 'sun', 'dark'], 260);
+  updateUI();
+}
+
+// ---- drawing ----
+function hash(n, seed) {
+  const s = Math.sin(n * 127.1 + seed * 311.7) * 43758.5453;
+  return s - Math.floor(s);
+}
+
+function hillY(style, x, layer) {
+  const base = [190, 225, 262][layer], amp = [70, 55, 40][layer];
+  if (style === 'mesa') {
+    const block = Math.floor((x + layer * 97) / 70);
+    return base - Math.round(hash(block, layer) * amp / 10) * 10;
+  }
+  if (style === 'peak') {
+    const period = 170 - layer * 30;
+    const u = (x + layer * 61) / period, cell = Math.floor(u), f = u - cell;
+    return base + 20 - amp * 1.3 * (1 - Math.abs(2 * f - 1)) * (0.55 + 0.45 * hash(cell, layer));
+  }
+  // 'dune' and 'pine' share this smooth curve
+  return base - amp * 0.5 * (1 + Math.sin(x * (0.012 - layer * 0.002) + layer * 2.1)) * (0.7 + 0.3 * Math.sin(x * 0.004 + layer));
+}
+
+function drawBackground(x0, x1, yMax) {
+  const L = level(), p = L.palette;
+  ctx.fillStyle = p.sun;
+  ctx.beginPath(); ctx.arc(L.sunPos[0], L.sunPos[1], 42, 0, Math.PI * 2); ctx.fill();
+  const step = L.hills === 'mesa' ? 70 : 8;
+  p.layers.forEach((color, layer) => {
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(x0, yMax);
+    if (L.hills === 'mesa') {
+      const start = Math.floor((x0 + layer * 97) / step) * step - layer * 97;
+      for (let x = start; x <= x1 + step; x += step) {
+        const y = hillY('mesa', x + 1, layer);
+        ctx.lineTo(x, y); ctx.lineTo(x + step, y);
+      }
+    } else {
+      for (let x = x0; x <= x1 + step; x += step) ctx.lineTo(x, hillY(L.hills, x, layer));
+    }
+    ctx.lineTo(x1 + step, yMax);
+    ctx.closePath(); ctx.fill();
+    if (L.hills === 'pine' && layer > 0) drawPines(x0, x1, layer);
+  });
+}
+
+function drawPines(x0, x1, layer) {
+  const spacing = layer === 1 ? 46 : 34, size = layer === 1 ? 16 : 24;
+  for (let cell = Math.floor(x0 / spacing); cell * spacing < x1 + spacing; cell++) {
+    if (hash(cell, layer + 5) < 0.45) continue;
+    const x = cell * spacing + hash(cell, layer + 9) * spacing * 0.6;
+    const h = size * (0.7 + 0.6 * hash(cell, layer + 3)), y = hillY('pine', x, layer) + 3;
+    ctx.beginPath(); ctx.moveTo(x, y - h); ctx.lineTo(x - h * 0.3, y); ctx.lineTo(x + h * 0.3, y); ctx.fill();
+  }
+}
+
+function drawTerrain() {
+  const L = level();
+  ctx.fillStyle = L.palette.dark;
+  for (const poly of L.terrain) {
+    ctx.beginPath();
+    poly.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y));
+    ctx.closePath(); ctx.fill();
+  }
+  const gx = L.goalX + 40, gy = L.groundY;
+  ctx.fillRect(gx, gy - 44, 3, 44);
+  ctx.beginPath(); ctx.moveTo(gx + 3, gy - 44); ctx.lineTo(gx + 22, gy - 37); ctx.lineTo(gx + 3, gy - 30); ctx.fill();
+}
+
+function drawGrid(x0, x1) {
+  ctx.fillStyle = level().palette.dark;
+  ctx.globalAlpha = 0.16;
+  for (let x = Math.max(0, Math.ceil(x0 / GRID) * GRID); x <= Math.min(WORLD_W, x1); x += GRID) {
+    for (let y = GRID; y <= WORLD_H; y += GRID) {
+      if (!insideTerrain(x, y)) ctx.fillRect(x - 1, y - 1, 2, 2);
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+
+function mixColor(a, b, t) {
+  const pa = parseInt(a.slice(1), 16), pb = parseInt(b.slice(1), 16);
+  const ch = s => Math.round(((pa >> s) & 255) * (1 - t) + ((pb >> s) & 255) * t);
+  return 'rgb(' + ch(16) + ',' + ch(8) + ',' + ch(0) + ')';
+}
+
+function drawBeam(ax, ay, bx, by, mat, stress, time) {
+  const p = level().palette, m = MATERIALS[mat];
+  const t = Math.max(0, Math.min(1, (stress - 0.3) / 0.7));
+  let width = m.width + t * 2;
+  if (stress > 0.85) width += Math.sin(time * 30) * 1.2 + 1;
+  ctx.strokeStyle = mixColor(p.dark, p.hot, t);
+  ctx.lineWidth = width;
+  ctx.lineCap = 'square';
+  ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
+  if (mat === 'steel') {
+    ctx.strokeStyle = p.sun; ctx.lineWidth = 2;
+    ctx.lineCap = 'butt';
+    ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
+  }
+}
+
+// Broken beam during a test: two short stubs left on the joints, in the warning color.
+function drawSnapped(ax, ay, bx, by, mat) {
+  const p = level().palette;
+  ctx.strokeStyle = p.hot; ctx.lineWidth = MATERIALS[mat].width; ctx.lineCap = 'butt';
+  const f = 0.3;
+  ctx.beginPath();
+  ctx.moveTo(ax, ay); ctx.lineTo(ax + (bx - ax) * f, ay + (by - ay) * f);
+  ctx.moveTo(bx, by); ctx.lineTo(bx + (ax - bx) * f, by + (ay - by) * f);
+  ctx.stroke();
+}
+
+// In build mode after a failed test: halo around beams that broke, numbered in break order.
+function drawBreakMarks(d) {
+  const p = level().palette;
+  ctx.font = 'bold 11px Helvetica, Arial, sans-serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  lastBreaks.forEach((br, i) => {
+    const b = d.beams[br.index], A = d.joints[b.a], B = d.joints[b.b];
+    ctx.globalAlpha = 0.45;
+    ctx.strokeStyle = p.hot; ctx.lineWidth = MATERIALS[b.mat].width + 8; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(A.x, A.y); ctx.lineTo(B.x, B.y); ctx.stroke();
+    ctx.globalAlpha = 1;
+    if (i < 5) {
+      const mx = (A.x + B.x) / 2, my = (A.y + B.y) / 2 - 12;
+      ctx.fillStyle = p.hot; ctx.beginPath(); ctx.arc(mx, my, 8, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = p.dark; ctx.fillText(String(i + 1), mx, my + 0.5);
+    }
+  });
+  ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+}
+
+// ---- effects: debris when a beam snaps, confetti on a win ----
+function burst(x, y, count, colors, power) {
+  for (let i = 0; i < count; i++) {
+    const a = Math.random() * Math.PI * 2, v = power * (0.3 + Math.random() * 0.7);
+    fx.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - power * 0.4, rot: Math.random() * 6, vr: (Math.random() - 0.5) * 14,
+      size: 2 + Math.random() * 3, life: 1, decay: 0.5 + Math.random() * 0.5, color: colors[i % colors.length] });
+  }
+}
+
+function updateFx(dt) {
+  for (const f of fx) {
+    f.vy += 600 * dt; f.x += f.vx * dt; f.y += f.vy * dt; f.rot += f.vr * dt; f.life -= f.decay * dt;
+  }
+  fx = fx.filter(f => f.life > 0 && f.y < WORLD_H + 100);
+  shake = Math.max(0, shake - dt * 30);
+}
+
+function drawFx() {
+  const p = level().palette;
+  for (const f of fx) {
+    ctx.globalAlpha = Math.min(1, f.life * 2);
+    ctx.fillStyle = p[f.color];
+    ctx.save(); ctx.translate(f.x, f.y); ctx.rotate(f.rot);
+    ctx.fillRect(-f.size, -f.size / 3, f.size * 2, f.size * 0.7);
+    ctx.restore();
+  }
+  ctx.globalAlpha = 1;
+}
+
+// Text label with a soft background, in world coordinates.
+function label(text, x, y) {
+  const p = level().palette;
+  ctx.font = 'bold 11px Inter, Helvetica, Arial, sans-serif';
+  const w = ctx.measureText(text).width + 10;
+  ctx.globalAlpha = 0.9; ctx.fillStyle = p.sun;
+  ctx.fillRect(x - w / 2, y - 9, w, 17);
+  ctx.globalAlpha = 1; ctx.fillStyle = p.dark;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(text, x, y);
+  ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+}
+
+function drawJoint(x, y, anchor) {
+  const p = level().palette;
+  ctx.fillStyle = p.dark;
+  const s = anchor ? 5 : 3.5;
+  ctx.fillRect(x - s, y - s, s * 2, s * 2);
+  if (anchor) { ctx.fillStyle = p.sun; ctx.fillRect(x - 1.5, y - 1.5, 3, 3); }
+}
+
+function polygon(points) {
+  ctx.beginPath();
+  points.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+  ctx.closePath(); ctx.fill();
+}
+
+// Body outlines in the vehicle's own frame: origin between the wheel centers, x forward, y down.
+const BODIES = {
+  car: {
+    outline: [[-31, -5], [-31, -14], [-26, -17], [-14, -18], [-7, -28], [9, -28], [17, -18], [28, -16], [32, -12], [32, -5]],
+    windows: [[[-11, -19], [-6, -25], [0, -25], [0, -19]], [[3, -19], [3, -25], [8, -25], [13, -19]]],
+    light: [29, -14],
+  },
+  truck: {
+    outline: [[-40, -5], [-40, -40], [8, -40], [8, -30], [22, -30], [32, -19], [39, -17], [40, -12], [40, -5]],
+    windows: [[[13, -28], [21, -28], [29, -19], [13, -19]]],
+    light: [37, -15],
+    seam: [9, -38, 2, 30],
+  },
+};
+
+function drawCar(w0, w1, veh = VEHICLES[level().vehicle]) {
+  const p = level().palette, body = BODIES[veh === VEHICLES.truck ? 'truck' : 'car'];
+  const mx = (w0.x + w1.x) / 2, my = (w0.y + w1.y) / 2;
+  ctx.save();
+  ctx.translate(mx, my); ctx.rotate(Math.atan2(w1.y - w0.y, w1.x - w0.x));
+  // Body outline with wheel arches cut out of the bottom edge (arc around each wheel).
+  const archR = veh.radius + 2.5, bottom = -5;
+  const dx = Math.sqrt(archR * archR - bottom * bottom), a = Math.atan2(bottom, dx);
+  ctx.fillStyle = p.dark;
+  ctx.beginPath();
+  body.outline.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+  for (const wx of [veh.base / 2, -veh.base / 2]) {
+    ctx.lineTo(wx + dx, bottom);
+    ctx.arc(wx, 0, archR, a, Math.PI - a, true);
+  }
+  ctx.closePath(); ctx.fill();
+  ctx.fillStyle = p.sun;
+  body.windows.forEach(polygon);
+  ctx.fillRect(body.light[0], body.light[1], 3, 3);
+  if (body.seam) ctx.fillRect(...body.seam);
+  ctx.restore();
+  for (const w of [w0, w1]) drawWheel(w.x, w.y, w.angle || 0, veh.radius);
+}
+
+function drawWheel(x, y, angle, r = CAR.radius) {
+  const p = level().palette;
+  ctx.fillStyle = p.dark;
+  ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = p.sun;
+  ctx.beginPath(); ctx.arc(x, y, r * 0.55, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = p.dark; ctx.lineWidth = 1.5; ctx.lineCap = 'butt';
+  ctx.beginPath();
+  for (let i = 0; i < 3; i++) {
+    const a = angle + i * Math.PI * 2 / 3;
+    ctx.moveTo(x, y); ctx.lineTo(x + Math.cos(a) * r * 0.55, y + Math.sin(a) * r * 0.55);
+  }
+  ctx.stroke();
+}
+
+function draw() {
+  const p = level().palette, s = view.scale;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.fillStyle = p.sky;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  const sx = shake ? (Math.random() - 0.5) * shake : 0, sy = shake ? (Math.random() - 0.5) * shake : 0;
+  ctx.setTransform(view.dpr * s, 0, 0, view.dpr * s, view.dpr * (view.ox + sx), view.dpr * (view.oy + sy));
+
+  const x0 = -view.ox / s, x1 = (view.w - view.ox) / s, yMax = (view.h - view.oy) / s + 10;
+  drawBackground(x0, x1, yMax);
+  drawTerrain();
+  if (mode === 'build') drawGrid(x0, x1);
+
+  if (mode === 'build') {
+    const d = design();
+    const order = [...d.beams].sort((a, b) => (a.mat === 'road') - (b.mat === 'road'));
+    for (const b of order) {
+      const A = d.joints[b.a], B = d.joints[b.b];
+      drawBeam(A.x, A.y, B.x, B.y, b.mat, 0, 0);
+    }
+    if (pending !== null && hover && tool !== 'erase') {
+      const A = d.joints[pending];
+      const j = findJoint(hover);
+      const end = j !== -1 ? d.joints[j] : hover;
+      const tooLong = Math.hypot(end.x - A.x, end.y - A.y) > MAX_LEN + 0.01;
+      ctx.strokeStyle = tooLong ? p.hot : p.dark;
+      ctx.globalAlpha = 0.55;
+      ctx.lineWidth = MATERIALS[tool].width;
+      ctx.setLineDash([6, 5]);
+      ctx.beginPath(); ctx.moveTo(A.x, A.y); ctx.lineTo(end.x, end.y); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.globalAlpha = 1;
+      const len = Math.hypot(end.x - A.x, end.y - A.y);
+      if (len > 0) {
+        const txt = tooLong ? 'too long' : (len / GRID).toFixed(1) + ' sq  +' + Math.round(len * MATERIALS[tool].cost);
+        label(txt, end.x, end.y - 18);
+      }
+    }
+    if (tool === 'erase' && hoverRaw) {
+      const target = eraseTarget(hoverRaw);
+      if (target) {
+        ctx.strokeStyle = p.hot; ctx.globalAlpha = 0.7; ctx.lineCap = 'round';
+        if (target.joint != null) {
+          const J = d.joints[target.joint];
+          ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(J.x, J.y, 9, 0, Math.PI * 2); ctx.stroke();
+        } else {
+          const b = d.beams[target.beam], A = d.joints[b.a], B = d.joints[b.b];
+          ctx.lineWidth = MATERIALS[b.mat].width + 6;
+          ctx.beginPath(); ctx.moveTo(A.x, A.y); ctx.lineTo(B.x, B.y); ctx.stroke();
+        }
+        ctx.globalAlpha = 1;
+      }
+    }
+    if (lastBreaks) drawBreakMarks(d);
+    d.joints.forEach((j, i) => drawJoint(j.x, j.y, j.anchor));
+    if (pending !== null) {
+      const A = d.joints[pending];
+      ctx.strokeStyle = p.hot; ctx.lineWidth = 2;
+      ctx.strokeRect(A.x - 7, A.y - 7, 14, 14);
+    }
+    if (hover) {
+      ctx.strokeStyle = p.dark; ctx.lineWidth = 1;
+      ctx.strokeRect(hover.x - 5, hover.y - 5, 10, 10);
+    }
+    const veh = VEHICLES[level().vehicle];
+    const y = level().groundY - veh.radius, x = level().carStartX;
+    drawCar({ x, y }, { x: x + veh.base, y }, veh);
+  } else {
+    const order = [...sim.beams].sort((a, b) => (a.mat === 'road') - (b.mat === 'road'));
+    for (const b of order) {
+      if (b.broken) drawSnapped(b.a.x, b.a.y, b.b.x, b.b.y, b.mat);
+      else drawBeam(b.a.x, b.a.y, b.b.x, b.b.y, b.mat, b.stress, sim.time);
+    }
+    for (const n of sim.nodes) if (n.mass || n.anchor) drawJoint(n.x, n.y, n.anchor);
+    drawCar(sim.wheels[0], sim.wheels[1], sim.veh);
+  }
+  drawFx();
+}
+
+// ---- loop and input ----
+let last = performance.now(), accumulator = 0;
+function frame(now) {
+  const dt = Math.min((now - last) / 1000, 0.1);
+  last = now;
+  if (mode === 'test') {
+    if (!paused) accumulator += dt * simSpeed;
+    while (accumulator >= FIXED_DT) { stepSim(sim, FIXED_DT); accumulator -= FIXED_DT; }
+    // New breaks since last frame: throw debris from the middle of each snapped beam.
+    while (seenBreaks < sim.breaks.length) {
+      const b = sim.beams[sim.breaks[seenBreaks++].index];
+      burst((b.a.x + b.b.x) / 2, (b.a.y + b.b.y) / 2, 8, ['hot', 'dark'], 120);
+      shake = Math.min(8, shake + 3);
+    }
+    let live = 0;
+    for (const b of sim.beams) if (!b.broken && b.stress > live) live = b.stress;
+    $('load').textContent = 'Load ' + Math.round(live * 100) + '%';
+    $('load').classList.toggle('hot', live > 0.75);
+    if (sim.state !== lastState) { lastState = sim.state; if (sim.state !== 'running') showResult(sim.state); }
+  }
+  if (!paused) updateFx(dt);
+  draw();
+  requestAnimationFrame(frame);
+}
+
+canvas.addEventListener('pointermove', e => {
+  const w = toWorld(e), j = mode === 'build' ? findJoint(w) : -1;
+  hover = j !== -1 ? { x: design().joints[j].x, y: design().joints[j].y } : snap(w);
+  hoverRaw = w;
+});
+canvas.addEventListener('pointerleave', () => { hover = null; hoverRaw = null; });
+canvas.addEventListener('pointerdown', e => {
+  if (mode !== 'build') return;
+  if (e.button === 2) { pending = null; return; }
+  if (e.button !== 0) return;
+  const w = toWorld(e);
+  if (tool === 'erase') erase(w); else placeBeam(w);
+});
+canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+document.querySelectorAll('#tools button').forEach(b => b.addEventListener('click', () => setTool(b.dataset.tool)));
+$('undo').addEventListener('click', undo);
+$('pause').addEventListener('click', togglePause);
+document.querySelectorAll('#simctl [data-speed]').forEach(b => b.addEventListener('click', () => setSpeed(Number(b.dataset.speed))));
+$('mEdit').addEventListener('click', stopTest);
+$('mRetry').addEventListener('click', retry);
+$('mNext').addEventListener('click', nextLevel);
+$('veh').addEventListener('click', () => {
+  if (mode !== 'build') return;
+  const F = LEVELS[FREE_INDEX];
+  LEVELS[FREE_INDEX] = makeFreeLevel(F.gap, F.pillar, F.vehicle === 'car' ? 'truck' : 'car');
+  updateUI();
+});
+$('clear').addEventListener('click', clearDesign);
+$('prev').addEventListener('click', () => changeLevel(-1));
+$('next').addEventListener('click', () => changeLevel(1));
+$('test').addEventListener('click', () => (mode === 'build' ? startTest() : stopTest()));
+$('gap').min = FREE_GAP.min; $('gap').max = FREE_GAP.max; $('gap').step = FREE_GAP.step;
+$('gap').addEventListener('input', () => {
+  const L = level();
+  if (design().beams.length) hint('Changing the gap clears the bridge');
+  rebuildFreeLevel(Number($('gap').value), L.pillar);
+});
+$('pillar').addEventListener('click', () => {
+  const L = level();
+  if (design().beams.length) hint('Toggling the pillar clears the bridge');
+  rebuildFreeLevel(L.gap, !L.pillar);
+});
+
+
+// ---- tutorial ----
+// Each step can point at a toolbar element (CSS selector) or a spot in the world (function -> screen rect).
+const HOT = 'style="fill:var(--hot)"', HOT_LINE = 'style="stroke:var(--hot)"', LIGHT = 'style="fill:var(--sun)"';
+const svg = body => '<svg viewBox="0 0 240 96" fill="currentColor" stroke="currentColor" stroke-linecap="square">' + body + '</svg>';
+const badge = (x, y, n) => `<circle cx="${x}" cy="${y}" r="8" ${HOT} stroke="none"/><text x="${x}" y="${y + 4}" text-anchor="middle" font-size="11" font-weight="700" stroke="none">${n}</text>`;
+const arrow = (x, y, dir) => `<polygon points="${x},${y} ${x - 7 * dir},${y - 5} ${x - 7 * dir},${y + 5}" stroke="none" ${HOT}/>`;
+
+function worldRect(x, y, pad) {
+  const s = view.scale;
+  return { left: view.ox + (x - pad) * s, top: view.oy + (y - pad) * s, width: pad * 2 * s, height: pad * 2 * s };
+}
+
+const TUTORIAL = [
+  {
+    title: 'Get the car across',
+    text: 'The car drives right on its own. Build a bridge over the gap so it reaches the flag. If it falls or the bridge breaks, try again.',
+    pic: svg(`<rect x="0" y="55" width="70" height="35" stroke="none"/><rect x="170" y="55" width="70" height="35" stroke="none"/>
+      <rect x="18" y="38" width="30" height="9" stroke="none"/><rect x="25" y="31" width="14" height="8" stroke="none"/>
+      <circle cx="25" cy="49" r="5" stroke="none"/><circle cx="42" cy="49" r="5" stroke="none"/>
+      <line x1="72" y1="55" x2="168" y2="55" stroke-width="2" stroke-dasharray="5 5" ${HOT_LINE}/>
+      <rect x="212" y="25" width="2" height="30" stroke="none"/><polygon points="214,25 228,30 214,35" stroke="none"/>`),
+  },
+  {
+    title: 'Building beams',
+    text: 'Click an anchor (square with a dot), then click grid points. Each click adds a beam from the last point. Right click, Esc, or clicking the last joint again ends the chain. While you drag, a label shows the beam length and what it costs. Max beam length: 5 grid squares.',
+    target: () => { const [x, y] = level().anchors[0]; return worldRect(x, y, 16); },
+    pic: svg(`${[30, 60, 90, 120, 150, 180, 210].map(x => [20, 45, 70].map(y => `<rect x="${x - 1}" y="${y - 1}" width="2" height="2" stroke="none" opacity="0.4"/>`).join('')).join('')}
+      <line x1="30" y1="70" x2="90" y2="70" stroke-width="5"/><line x1="90" y1="70" x2="120" y2="20" stroke-width="3"/><line x1="120" y1="20" x2="150" y2="70" stroke-width="3"/>
+      <line x1="150" y1="70" x2="210" y2="70" stroke-width="2" stroke-dasharray="4 4" opacity="0.5"/>
+      <rect x="24" y="64" width="12" height="12" stroke="none"/><rect x="28" y="68" width="4" height="4" stroke="none" ${LIGHT}/>
+      <rect x="86" y="66" width="8" height="8" stroke="none"/><rect x="116" y="16" width="8" height="8" stroke="none"/><rect x="146" y="66" width="8" height="8" stroke="none"/>
+      ${badge(30, 50, 1)}${badge(90, 50, 2)}${badge(134, 14, 3)}${badge(164, 50, 4)}`),
+  },
+  {
+    title: 'Three materials',
+    text: 'Road is the only thing the car can drive on, so you always need a road from cliff to cliff. Wood is cheap but weak. Steel is about 2.5 times stronger than wood but costs 2.5 times as much, so use it only where beams break.',
+    target: '#tools',
+    pic: svg(`<line x1="10" y1="18" x2="80" y2="18" stroke-width="6"/><text x="94" y="22" font-size="12" stroke="none">Road: drivable</text>
+      <line x1="10" y1="45" x2="80" y2="45" stroke-width="3"/><text x="94" y="49" font-size="12" stroke="none">Wood: cheap, weak</text>
+      <line x1="10" y1="72" x2="80" y2="72" stroke-width="5"/><line x1="12" y1="72" x2="78" y2="72" stroke-width="2" style="stroke:var(--sun)"/>
+      <text x="94" y="76" font-size="12" stroke="none">Steel: strong, expensive</text>`),
+  },
+  {
+    title: 'Use triangles',
+    text: 'A square can fold flat without any beam changing length, so it collapses. A triangle cannot change shape unless a beam stretches or squishes. Build triangles above or below the road, like a real truss bridge.',
+    pic: svg(`<polygon points="20,75 70,75 90,25 40,25" fill="none" stroke-width="3"/>
+      <polygon points="20,75 70,75 70,25 20,25" fill="none" stroke-width="1.5" stroke-dasharray="4 4" opacity="0.45"/>
+      <text x="55" y="89" text-anchor="middle" font-size="12" stroke="none">square folds</text>
+      <line x1="134" y1="75" x2="214" y2="75" stroke-width="5"/>
+      <polyline points="134,75 154,35 174,75 194,35 214,75" fill="none" stroke-width="3"/><line x1="154" y1="35" x2="194" y2="35" stroke-width="3"/>
+      <text x="174" y="89" text-anchor="middle" font-size="12" stroke="none">triangles hold</text>`),
+  },
+  {
+    title: 'Test and watch the colors',
+    text: 'Press Test or Space. Beams turn from dark to orange as they get close to breaking, and start shaking right before they snap. The orange beams show you where to add support.',
+    target: '#test',
+    pic: svg(`<defs><linearGradient id="stressGrad"><stop offset="0" style="stop-color:currentColor"/><stop offset="0.3" style="stop-color:currentColor"/><stop offset="1" style="stop-color:var(--hot)"/></linearGradient></defs>
+      <rect x="10" y="32" width="220" height="12" fill="url(#stressGrad)" stroke="none"/>
+      <text x="10" y="64" font-size="12" stroke="none">safe</text><text x="230" y="64" text-anchor="end" font-size="12" stroke="none">about to break</text>`),
+  },
+  {
+    title: 'When it breaks',
+    text: 'The message tells you which beam broke first and how. Pulled apart (tension) means it was stretched too hard. Crushed (compression) means it was squeezed. Back in edit mode, broken beams glow and are numbered in the order they broke. Fix beam 1 first: the others often broke only because it was gone.',
+    pic: svg(`<line x1="60" y1="25" x2="180" y2="25" stroke-width="4"/>${arrow(48, 25, -1)}${arrow(192, 25, 1)}
+      <text x="120" y="46" text-anchor="middle" font-size="12" stroke="none">tension: pulled apart</text>
+      <line x1="60" y1="68" x2="180" y2="68" stroke-width="4"/>${arrow(56, 68, 1)}${arrow(184, 68, -1)}
+      <text x="120" y="89" text-anchor="middle" font-size="12" stroke="none">compression: crushed</text>${badge(120, 10, 1)}`),
+  },
+  {
+    title: 'Stay on budget',
+    text: 'Every beam costs money based on its length and material. You cannot go over the budget. Cross at or under the par cost for 3 stars, within 30% of par for 2. Your best cost and your bridges are saved.',
+    target: '#cost',
+  },
+  {
+    title: 'Levels and free build',
+    text: 'Use the arrows to switch levels. Levels 4 and 5 send a truck about 5 times heavier than the car. Before level 1 is Free build: no budget, set the gap with the slider, add a pillar, and pick car or truck.',
+    target: '#levels',
+    pic: svg(`<rect x="0" y="40" width="60" height="50" stroke="none"/><rect x="180" y="40" width="60" height="50" stroke="none"/>
+      <line x1="72" y1="25" x2="168" y2="25" stroke-width="2" ${HOT_LINE}/>${arrow(64, 25, -1)}${arrow(176, 25, 1)}
+      <text x="120" y="18" text-anchor="middle" font-size="12" stroke="none">gap slider</text>
+      <polygon points="110,70 130,70 136,90 104,90" stroke="none"/><text x="120" y="62" text-anchor="middle" font-size="12" stroke="none">pillar</text>`),
+  },
+  {
+    title: 'Keyboard shortcuts',
+    text: 'You can open this again any time with the Tutorial button.',
+    target: '#tutBtn',
+    html: `<div class="keys"><kbd>1</kbd><span>Road</span><kbd>2</kbd><span>Wood</span><kbd>3</kbd><span>Steel</span>
+      <kbd>E</kbd><span>Erase</span><kbd>Z</kbd><span>Undo (Shift+Z or Y to redo)</span><kbd>Esc</kbd><span>Stop the current chain</span>
+      <kbd>Space</kbd><span>Test / back to edit</span><kbd>P</kbd><span>Pause test</span><kbd>S</kbd><span>Test speed: 1x, 2x, slow motion</span>
+      <kbd>R</kbd><span>Retry test</span><kbd>N</kbd><span>Next level after a win</span></div>`,
+  },
+];
+
+const TUT_KEY = 'span-tutorial-done';
+let tutIndex = -1;
+const tutOpen = () => tutIndex !== -1;
+
+function openTutorial() {
+  if (mode === 'test') stopTest();
+  pending = null;
+  tutIndex = 0;
+  $('tut').hidden = false;
+  renderTutorial();
+}
+
+function closeTutorial() {
+  tutIndex = -1;
+  $('tut').hidden = true;
+  try { localStorage.setItem(TUT_KEY, '1'); } catch (err) { /* storage blocked: tutorial just opens again next time */ }
+  $('tutBtn').focus();
+}
+
+function moveTutorial(delta) {
+  const next = tutIndex + delta;
+  if (next < 0) return;
+  if (next >= TUTORIAL.length) { closeTutorial(); return; }
+  tutIndex = next;
+  renderTutorial();
+}
+
+function renderTutorial() {
+  const step = TUTORIAL[tutIndex], last = tutIndex === TUTORIAL.length - 1;
+  $('tutStep').textContent = (tutIndex + 1) + ' / ' + TUTORIAL.length;
+  $('tutTitle').textContent = step.title;
+  $('tutText').textContent = step.text;
+  $('tutPic').innerHTML = step.pic || step.html || '';
+  $('tutBack').style.visibility = tutIndex === 0 ? 'hidden' : 'visible';
+  $('tutSkip').style.visibility = last ? 'hidden' : 'visible';
+  $('tutNext').textContent = last ? 'Start building' : 'Next';
+  placeSpotlight();
+  $('tutNext').focus();
+}
+
+function placeSpotlight() {
+  if (!tutOpen()) return;
+  const target = TUTORIAL[tutIndex].target, spot = $('tutSpot');
+  let r = null;
+  if (typeof target === 'function') r = target();
+  else if (target) {
+    const el = document.querySelector(target);
+    if (el && el.offsetParent !== null) r = el.getBoundingClientRect();
+  }
+  spot.classList.toggle('none', !r);
+  const pad = 6;
+  if (!r) r = { left: view.w / 2, top: view.h / 2, width: 0, height: 0 };
+  else r = { left: r.left - pad, top: r.top - pad, width: r.width + pad * 2, height: r.height + pad * 2 };
+  Object.assign(spot.style, { left: r.left + 'px', top: r.top + 'px', width: r.width + 'px', height: r.height + 'px' });
+  placeCard(r);
+}
+
+// Try card placements in order of preference and keep the first one that does not cover the spotlight.
+// On small screens the picture is dropped to make room. If nothing fits, use the least bad option.
+function placeCard(spot) {
+  const card = $('tutCard'), top = ($('bar').getBoundingClientRect().bottom + 12) + 'px';
+  const options = [[false, false], [true, false], [false, true], [true, true]]; // [atTop, compact]
+  const apply = ([atTop, compact]) => {
+    card.style.top = atTop ? top : '';
+    card.style.bottom = atTop ? 'auto' : '';
+    card.classList.toggle('compact', compact);
+  };
+  const overlap = () => {
+    const c = card.getBoundingClientRect();
+    const w = Math.min(c.right, spot.left + spot.width) - Math.max(c.left, spot.left);
+    const h = Math.min(c.bottom, spot.top + spot.height) - Math.max(c.top, spot.top);
+    return w > 0 && h > 0 ? w * h : 0;
+  };
+  if (!spot.width) { apply(options[0]); return; }
+  let best = options[0], bestArea = Infinity;
+  for (const opt of options) {
+    apply(opt);
+    const area = overlap();
+    if (area === 0) return;
+    if (area < bestArea) { best = opt; bestArea = area; }
+  }
+  apply(best);
+}
+
+$('tutBtn').addEventListener('click', openTutorial);
+$('tutNext').addEventListener('click', () => moveTutorial(1));
+$('tutBack').addEventListener('click', () => moveTutorial(-1));
+$('tutSkip').addEventListener('click', closeTutorial);
+
+window.addEventListener('keydown', e => {
+  if (e.repeat) return;
+  const k = e.key.toLowerCase();
+  // While the tutorial is open, game shortcuts are off. Enter and Space stay with the focused button.
+  if (tutOpen()) {
+    if (k === 'escape') closeTutorial();
+    else if (k === 'arrowright') moveTutorial(1);
+    else if (k === 'arrowleft') moveTutorial(-1);
+    return;
+  }
+  // Blur first: a focused button would also treat Space as a click and undo the toggle.
+  if (k === ' ') { e.preventDefault(); document.activeElement.blur(); mode === 'build' ? startTest() : stopTest(); }
+  else if (mode !== 'build') {
+    if (k === 'n' && sim.state === 'won') nextLevel();
+    else if (k === 'r') retry();
+    else if (k === 'p') togglePause();
+    else if (k === 's') setSpeed(simSpeed === 1 ? 2 : simSpeed === 2 ? 0.25 : 1);
+  }
+  else if (k === '1') setTool('road');
+  else if (k === '2') setTool('wood');
+  else if (k === '3') setTool('steel');
+  else if (k === 'e') setTool('erase');
+  else if (k === 'z' && e.shiftKey) redo();
+  else if (k === 'z') undo();
+  else if (k === 'y') redo();
+  else if (k === 'escape') pending = null;
+});
+
+window.addEventListener('resize', () => { resize(); placeSpotlight(); });
+resize();
+applyPalette();
+updateUI();
+let tutorialSeen = false;
+try { tutorialSeen = localStorage.getItem(TUT_KEY) === '1'; } catch (err) { /* storage blocked: treat as first visit */ }
+if (tutorialSeen) hint('Build from an anchor · Click points to connect beams · Space to test');
+else openTutorial();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
